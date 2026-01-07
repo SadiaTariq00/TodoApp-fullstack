@@ -1,0 +1,513 @@
+openapi: 3.1.0
+info:
+  title: Todo Backend API
+  description: |
+    Secure FastAPI backend for Todo application with JWT authentication and per-user data isolation.
+
+    ## Authentication
+    All endpoints require Bearer JWT token in Authorization header:
+    ```
+    Authorization: Bearer <jwt_token>
+    ```
+
+    ## Security Model
+    - JWT token validated on every request
+    - User ID extracted from JWT claims
+    - URL path user_id must match JWT user_id
+    - Cross-user access forbidden (403)
+
+    ## Error Responses
+    - `401 Unauthorized`: Missing, invalid, or expired JWT
+    - `403 Forbidden`: Valid JWT but accessing different user's resources
+    - `404 Not Found`: Resource doesn't exist
+    - `422 Unprocessable Entity`: Validation errors
+    - `503 Service Unavailable`: Database connection failure
+  version: 1.0.0
+  contact:
+    name: Hackathon II Team
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.production.com
+    description: Production server (example)
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: tasks
+    description: Task CRUD operations (user-scoped)
+  - name: health
+    description: Health check and status endpoints
+
+paths:
+  /api/{user_id}/tasks:
+    get:
+      tags: [tasks]
+      summary: List all tasks for authenticated user
+      description: |
+        Returns array of all tasks belonging to the authenticated user.
+        Tasks are filtered by user_id from JWT token.
+
+        **Success criteria**: SC-001, SC-002
+      operationId: listTasks
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      responses:
+        '200':
+          description: Task list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+              examples:
+                withTasks:
+                  summary: User with 2 tasks
+                  value:
+                    - id: 1
+                      user_id: "user123"
+                      title: "Buy groceries"
+                      description: "Milk, eggs, bread"
+                      completed: false
+                      created_at: "2026-01-06T10:00:00Z"
+                      updated_at: "2026-01-06T10:00:00Z"
+                    - id: 2
+                      user_id: "user123"
+                      title: "Finish project"
+                      description: null
+                      completed: true
+                      created_at: "2026-01-05T14:30:00Z"
+                      updated_at: "2026-01-06T09:15:00Z"
+                emptyList:
+                  summary: User with no tasks
+                  value: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [tasks]
+      summary: Create new task for authenticated user
+      description: |
+        Creates a new task assigned to the authenticated user.
+        User ID from JWT is automatically assigned (not from request body).
+
+        **Success criteria**: SC-001, SC-004
+      operationId: createTask
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+            examples:
+              minimal:
+                summary: Minimal task (title only)
+                value:
+                  title: "Buy groceries"
+              withDescription:
+                summary: Task with description
+                value:
+                  title: "Prepare presentation"
+                  description: "Include sales figures and Q4 projections"
+                  completed: false
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              example:
+                id: 42
+                user_id: "user123"
+                title: "Buy groceries"
+                description: null
+                completed: false
+                created_at: "2026-01-06T15:30:00Z"
+                updated_at: "2026-01-06T15:30:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/{user_id}/tasks/{task_id}:
+    get:
+      tags: [tasks]
+      summary: Get single task by ID
+      description: |
+        Returns detailed information for a specific task.
+        Task must belong to authenticated user.
+
+        **Success criteria**: SC-002
+      operationId: getTask
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/TaskIdPath'
+      responses:
+        '200':
+          description: Task retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [tasks]
+      summary: Update task details
+      description: |
+        Updates title, description, and/or completed status.
+        Partial updates allowed (only provided fields updated).
+        Task must belong to authenticated user.
+
+        **Success criteria**: SC-004, SC-008
+      operationId: updateTask
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/TaskIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+            examples:
+              updateTitle:
+                summary: Update title only
+                value:
+                  title: "Buy organic groceries"
+              updateAll:
+                summary: Update all fields
+                value:
+                  title: "Complete annual report"
+                  description: "Include financial summary and forecasts"
+                  completed: true
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [tasks]
+      summary: Delete task permanently
+      description: |
+        Removes task from database (hard delete, not reversible).
+        Task must belong to authenticated user.
+
+        **Success criteria**: SC-002, SC-004
+      operationId: deleteTask
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/TaskIdPath'
+      responses:
+        '204':
+          description: Task deleted successfully (no content)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/{user_id}/tasks/{task_id}/complete:
+    patch:
+      tags: [tasks]
+      summary: Toggle task completion status
+      description: |
+        Flips completed boolean: true → false or false → true.
+        No request body required.
+        Task must belong to authenticated user.
+
+        **Success criteria**: SC-004
+      operationId: toggleTaskCompletion
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/TaskIdPath'
+      responses:
+        '200':
+          description: Task completion toggled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              example:
+                id: 42
+                user_id: "user123"
+                title: "Buy groceries"
+                description: null
+                completed: true
+                created_at: "2026-01-06T10:00:00Z"
+                updated_at: "2026-01-06T15:45:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /health:
+    get:
+      tags: [health]
+      summary: Health check endpoint
+      description: Returns service status (does not require authentication)
+      operationId: healthCheck
+      security: []  # No auth required
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2026-01-06T15:30:00Z"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token from Better Auth frontend.
+        Token must contain user_id claim (typically in "sub" field).
+
+  parameters:
+    UserIdPath:
+      name: user_id
+      in: path
+      required: true
+      description: User identifier (must match JWT user_id claim)
+      schema:
+        type: string
+      example: "user123"
+
+    TaskIdPath:
+      name: task_id
+      in: path
+      required: true
+      description: Task identifier
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+      example: 42
+
+  schemas:
+    Task:
+      type: object
+      required:
+        - id
+        - user_id
+        - title
+        - completed
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int32
+          description: Unique task identifier (auto-generated)
+          example: 42
+        user_id:
+          type: string
+          description: Owner's user identifier (from JWT)
+          example: "user123"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Task title (required, 1-200 characters)
+          example: "Buy groceries"
+        description:
+          type: string
+          nullable: true
+          maxLength: 1000
+          description: Task description (optional, max 1000 characters)
+          example: "Milk, eggs, bread, and vegetables"
+        completed:
+          type: boolean
+          description: Task completion status
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          description: Task creation timestamp (UTC, ISO 8601)
+          example: "2026-01-06T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last modification timestamp (UTC, ISO 8601)
+          example: "2026-01-06T15:30:00Z"
+
+    TaskCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Task title (required, 1-200 characters)
+          example: "Buy groceries"
+        description:
+          type: string
+          nullable: true
+          maxLength: 1000
+          description: Task description (optional, max 1000 characters)
+          example: "Milk, eggs, bread"
+        completed:
+          type: boolean
+          default: false
+          description: Initial completion status (defaults to false)
+          example: false
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          nullable: true
+          description: Updated task title (optional, 1-200 characters)
+          example: "Buy organic groceries"
+        description:
+          type: string
+          nullable: true
+          maxLength: 1000
+          description: Updated task description (optional, max 1000 characters)
+          example: "Focus on fresh produce"
+        completed:
+          type: boolean
+          nullable: true
+          description: Updated completion status (optional)
+          example: true
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Human-readable error message
+          example: "Missing authorization token"
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  type: string
+                description: Field path where error occurred
+                example: ["body", "title"]
+              msg:
+                type: string
+                description: Error message
+                example: "ensure this value has at most 200 characters"
+              type:
+                type: string
+                description: Error type
+                example: "value_error.any_str.max_length"
+
+  responses:
+    Unauthorized:
+      description: Missing, invalid, or expired JWT token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missingToken:
+              summary: No Authorization header
+              value:
+                detail: "Missing authorization token"
+            invalidToken:
+              summary: Invalid JWT signature
+              value:
+                detail: "Invalid or malformed token"
+            expiredToken:
+              summary: Token expired
+              value:
+                detail: "Token has expired"
+
+    Forbidden:
+      description: Valid JWT but user_id mismatch with URL path
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail: "Access forbidden: user_id mismatch"
+
+    NotFound:
+      description: Resource not found or doesn't belong to user
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail: "Task not found"
+
+    ValidationError:
+      description: Request body validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          examples:
+            titleTooLong:
+              summary: Title exceeds 200 characters
+              value:
+                detail:
+                  - loc: ["body", "title"]
+                    msg: "ensure this value has at most 200 characters"
+                    type: "value_error.any_str.max_length"
+            titleMissing:
+              summary: Required title field missing
+              value:
+                detail:
+                  - loc: ["body", "title"]
+                    msg: "field required"
+                    type: "value_error.missing"
