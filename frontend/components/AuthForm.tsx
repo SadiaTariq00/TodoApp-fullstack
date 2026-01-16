@@ -33,10 +33,15 @@ const AuthForm: React.FC<AuthFormProps> = ({ type }) => {
         const credentials: LoginCredentials = { email, password };
         response = await apiClient.login(credentials);
       } else {
-        // Register credentials
-        const credentials: RegisterCredentials = { email, password, name };
+        // Register credentials - map name to username for backend compatibility
+        const credentials = {
+          email,
+          username: name,  // Map frontend 'name' field to backend 'username'
+          password
+        };
         response = await apiClient.register(credentials);
       }
+      
 
       if (response.success) {
         // Redirect to tasks page after successful authentication

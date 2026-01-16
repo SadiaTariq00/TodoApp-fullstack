@@ -87,7 +87,7 @@ const Navbar = () => {
             {isAuthenticated ? (
               <>
                 <Link
-                  href="/tasks"
+                  href="/dashboard"
                   className="text-gray-700 hover:text-blue-600 font-medium transition-all duration-200 px-4 py-2.5 rounded-xl hover:bg-blue-50/80"
                 >
                   Dashboard
