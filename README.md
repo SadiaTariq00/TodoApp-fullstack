@@ -11,18 +11,11 @@ A modern, full-featured todo application built with a Next.js frontend and FastA
 - **Real-time Updates**: Live task management experience
 - **Data Isolation**: Tasks are securely isolated between users
 - **Filtering**: View all, active, or completed tasks
-- **Modern Tech Stack**: Next.js 14+, FastAPI, PostgreSQL
-
-## 🛠️ Technology Stack
-
-| Component | Technology |
-|-----------|------------|
-| Frontend | Next.js 14+ (App Router), TypeScript, Tailwind CSS |
-| Backend | Python FastAPI, SQLModel |
-| Database | Neon Serverless PostgreSQL |
-| Authentication | JWT Tokens with Custom Implementation |
-| Styling | Tailwind CSS |
-| Package Manager | npm |
+- **Modern Tech Stack**: Next.js 14+ (App Router), TypeScript, Tailwind CSS |
+- **Database**: Neon Serverless PostgreSQL |
+- **Authentication**: JWT Tokens with Custom Implementation |
+- **Styling**: Tailwind CSS |
+- **Package Manager**: npm |
 
 ## 📁 Project Structure
 
@@ -229,3 +222,5 @@ Please use the GitHub Issues section to report bugs or request features.
 - Added task CRUD operations
 - Created responsive UI with Next.js
 - Integrated PostgreSQL database
+
+<!-- Triggering Vercel deployment -->
