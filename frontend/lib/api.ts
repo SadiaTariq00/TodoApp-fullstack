@@ -29,15 +29,17 @@ export interface Task {
 /* =========================
    Axios Setup
 ========================= */
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+// Function to get current API base URL to ensure environment variable changes are reflected
+const getApiBaseUrl = (): string => {
+  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+};
 
 class ApiClient {
   private client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
-      baseURL: API_BASE_URL,
+      baseURL: getApiBaseUrl(),
       headers: { "Content-Type": "application/json" },
     });
 
@@ -272,6 +274,12 @@ class ApiClient {
       console.error(`Error deleting task ${id} for user ${userId}:`, error);
       return this.handleError(error, 'Failed to delete task');
     }
+  }
+
+  // Method to refresh the API client with updated base URL
+  refreshApiClient() {
+    // Update the base URL to reflect any environment variable changes
+    this.client.defaults.baseURL = getApiBaseUrl();
   }
 
   /* =====================

@@ -1,0 +1,18 @@
+# Hugging Face Space configuration
+runtime:
+  cpu: 2
+  memory: 8GiB
+  accelerator: none
+
+python:
+  version: 3.10
+  requirements: requirements_hf.txt
+
+secrets:
+  - NEON_DATABASE_URL
+  - BETTER_AUTH_SECRET
+
+variables:
+  - DEBUG: "false"
+  - TIMEOUT_KEEP_ALIVE: "60"
+  - TIMEOUT_GRACEFUL_SHUTDOWN: "30"
