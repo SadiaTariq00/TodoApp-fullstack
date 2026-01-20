@@ -64,5 +64,3 @@ out/
 # OS
 Thumbs.db
 
-# Exclude backend for GitHub Pages deployment
-backend/

@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosError } from "axios";
+import axios, { AxiosInstance } from "axios";
 
 /* =========================
    Types
@@ -27,23 +27,23 @@ export interface Task {
 }
 
 /* =========================
-   Axios Setup
+   Axios Setup (FIXED)
 ========================= */
-// Function to get current API base URL to ensure environment variable changes are reflected
-const getApiBaseUrl = (): string => {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-};
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://localhost:8000/";
 
 class ApiClient {
   private client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
-      baseURL: getApiBaseUrl(),
+      baseURL: API_BASE_URL,
       headers: { "Content-Type": "application/json" },
+      withCredentials: true,
     });
 
-    // Attach JWT
+    // Attach JWT token
     this.client.interceptors.request.use((config) => {
       if (typeof window !== "undefined") {
         const token = localStorage.getItem("jwt_token");
@@ -53,42 +53,6 @@ class ApiClient {
       }
       return config;
     });
-  }
-
-  // Helper function to get user ID from JWT token
-  private getUserIdFromToken(): string | null {
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem("jwt_token");
-      if (token && token.split('.').length === 3) { // JWT has 3 parts: header.payload.signature
-        try {
-          // Split the token to get the payload (second part)
-          const payload = token.split('.')[1];
-
-          // Add padding if needed for base64 decoding
-          const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
-
-          // Decode the base64 payload - use browser native atob
-          const decodedPayload = typeof atob !== 'undefined' ? atob(paddedPayload) : null;
-          if (!decodedPayload) {
-            console.error('Unable to decode JWT token in this environment');
-            return null;
-          }
-
-          // Parse as JSON
-          const parsedPayload = JSON.parse(decodedPayload);
-
-          // Return the user_id - prioritize user_id and sub as they're what backend uses
-          const userId = parsedPayload.user_id || parsedPayload.sub || parsedPayload.userId || parsedPayload.id;
-          return userId ? String(userId) : null;
-        } catch (error) {
-          console.error('Error decoding JWT token:', error);
-          return null;
-        }
-      } else {
-        console.warn('JWT token not found or invalid format');
-      }
-    }
-    return null;
   }
 
   /* =========================
@@ -102,11 +66,11 @@ class ApiClient {
   }): Promise<ApiResponse<{ user: User; token: string }>> {
     try {
       const res = await this.client.post("/api/auth/register", payload);
-      if (res.data.success) {
+      if (res.data?.success) {
         localStorage.setItem("jwt_token", res.data.data.token);
       }
       return res.data;
-    } catch (err) {
+    } catch (err: any) {
       return this.handleError(err, "Registration failed");
     }
   }
@@ -117,12 +81,89 @@ class ApiClient {
   }): Promise<ApiResponse<{ user: User; token: string }>> {
     try {
       const res = await this.client.post("/api/auth/login", payload);
-      if (res.data.success) {
+      if (res.data?.success) {
         localStorage.setItem("jwt_token", res.data.data.token);
       }
       return res.data;
-    } catch (err) {
+    } catch (err: any) {
       return this.handleError(err, "Login failed");
+    }
+  }
+
+  logout() {
+    localStorage.removeItem("jwt_token");
+  }
+
+  /* =========================
+     TASKS
+  ========================= */
+
+  private getUserIdFromToken(): string | null {
+    if (typeof window === "undefined") return null;
+    const token = localStorage.getItem("jwt_token");
+    if (!token) return null;
+
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return String(payload.user_id || payload.sub || payload.id || "");
+    } catch {
+      return null;
+    }
+  }
+
+  async getTasks(): Promise<ApiResponse<{ tasks: Task[] }>> {
+    const userId = this.getUserIdFromToken();
+    if (!userId) {
+      return { success: false, error: "Not authenticated", status: 401 };
+    }
+    try {
+      const res = await this.client.get(`/api/${userId}/tasks`);
+      return { success: true, data: { tasks: res.data }, status: 200 };
+    } catch (err: any) {
+      return this.handleError(err, "Failed to fetch tasks");
+    }
+  }
+
+  async createTask(task: Partial<Task>): Promise<ApiResponse<Task>> {
+    const userId = this.getUserIdFromToken();
+    if (!userId) {
+      return { success: false, error: "Not authenticated", status: 401 };
+    }
+    try {
+      const res = await this.client.post(`/api/${userId}/tasks`, task);
+      return { success: true, data: res.data, status: 201 };
+    } catch (err: any) {
+      return this.handleError(err, "Failed to create task");
+    }
+  }
+
+  async updateTask(id: number, task: Partial<Task>): Promise<ApiResponse<Task>> {
+    const userId = this.getUserIdFromToken();
+    if (!userId) {
+      return { success: false, error: "Not authenticated", status: 401 };
+    }
+    try {
+      const res = await this.client.put(`/api/${userId}/tasks/${id}`, task);
+      return { success: true, data: res.data, status: 200 };
+    } catch (err: any) {
+      return this.handleError(err, "Failed to update task");
+    }
+  }
+
+  async deleteTask(id: number): Promise<ApiResponse<{ message: string }>> {
+    const userId = this.getUserIdFromToken();
+    if (!userId) {
+      return { success: false, error: "Not authenticated", status: 401 };
+    }
+    try {
+      await this.client.delete(`/api/${userId}/tasks/${id}`);
+      return {
+        success: true,
+        data: { message: "Task deleted successfully" },
+        status: 200,
+      };
+    } catch (err: any) {
+      return this.handleError(err, "Failed to delete task");
     }
   }
 
@@ -137,17 +178,14 @@ class ApiClient {
     }
   }
 
-  logout() {
-    localStorage.removeItem("jwt_token");
-  }
-
+  // Logout user from backend
   async logoutUser(): Promise<ApiResponse<{ message: string }>> {
     try {
       const response = await this.client.post('/api/auth/logout');
       const result = response.data;
 
       if (result.success) {
-        this.logout();
+        this.logout(); // Clear local storage
       }
 
       return result;
@@ -157,154 +195,20 @@ class ApiClient {
   }
 
   /* =========================
-     TASKS
+     Error handler
   ========================= */
-
-  async getTasks(): Promise<ApiResponse<{ tasks: Task[] }>> {
-    const userId = this.getUserIdFromToken();
-    if (!userId) {
-      console.error('User not authenticated');
-      return {
-        success: false,
-        error: 'User not authenticated',
-        status: 401,
-      }; // Return error response if not authenticated
-    }
-    try {
-      const response = await this.client.get(`/api/${userId}/tasks`);
-      return {
-        success: true,
-        data: { tasks: response.data },
-        status: 200,
-      };
-    } catch (error: any) {
-      console.error('Error fetching tasks:', error);
-      return this.handleError(error, 'Failed to fetch tasks');
-    }
-  }
-
-  async createTask(task: Partial<Task>): Promise<ApiResponse<Task>> {
-    const userId = this.getUserIdFromToken();
-    if (!userId) {
-      console.error('User not authenticated');
-      return {
-        success: false,
-        error: 'User not authenticated',
-        status: 401,
-      };
-    }
-    try {
-      const response = await this.client.post(`/api/${userId}/tasks`, task);
-      return {
-        success: true,
-        data: response.data,
-        status: 201,
-      };
-    } catch (error: any) {
-      console.error('Error creating task:', error);
-      return this.handleError(error, 'Failed to create task');
-    }
-  }
-
-  async updateTask(id: number, task: Partial<Task>): Promise<ApiResponse<Task>> {
-    const userId = this.getUserIdFromToken();
-    if (!userId) {
-      console.error('User not authenticated');
-      return {
-        success: false,
-        error: 'User not authenticated',
-        status: 401,
-      };
-    }
-    try {
-      const response = await this.client.put(`/api/${userId}/tasks/${id}`, task);
-      return {
-        success: true,
-        data: response.data,
-        status: 200,
-      };
-    } catch (error: any) {
-      console.error(`Error updating task ${id} for user ${userId}:`, error);
-      return this.handleError(error, 'Failed to update task');
-    }
-  }
-
-  async toggleTaskCompletion(id: number): Promise<ApiResponse<Task>> {
-    const userId = this.getUserIdFromToken();
-    if (!userId) {
-      console.error('User not authenticated');
-      return {
-        success: false,
-        error: 'User not authenticated',
-        status: 401,
-      };
-    }
-    try {
-      const response = await this.client.patch(`/api/${userId}/tasks/${id}/complete`);
-      return {
-        success: true,
-        data: response.data,
-        status: response.status || 200,
-      };
-    } catch (error: any) {
-      console.error(`Error toggling task completion for task ${id} and user ${userId}:`, error);
-      return this.handleError(error, 'Failed to toggle task completion');
-    }
-  }
-
-  async deleteTask(id: number): Promise<ApiResponse<{ message: string }>> {
-    const userId = this.getUserIdFromToken();
-    if (!userId) {
-      console.error('User not authenticated');
-      return {
-        success: false,
-        error: 'User not authenticated',
-        status: 401,
-      };
-    }
-    try {
-      const response = await this.client.delete(`/api/${userId}/tasks/${id}`);
-      // For DELETE, the response.data might be empty (204 No Content), but we still succeeded
-      return {
-        success: true,
-        data: { message: 'Task deleted successfully' },
-        status: response.status || 200,
-      };
-    } catch (error: any) {
-      console.error(`Error deleting task ${id} for user ${userId}:`, error);
-      return this.handleError(error, 'Failed to delete task');
-    }
-  }
-
-  // Method to refresh the API client with updated base URL
-  refreshApiClient() {
-    // Update the base URL to reflect any environment variable changes
-    this.client.defaults.baseURL = getApiBaseUrl();
-  }
-
-  /* =====================
-     Error
-  ========================= */
-
   private handleError(error: any, fallback: string): ApiResponse {
     if (axios.isAxiosError(error)) {
-      console.error('Axios error details:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        headers: error.response?.headers,
-        url: error.config?.url,
-        method: error.config?.method
-      });
-
       return {
         success: false,
-        error: error.response?.data?.error || error.response?.data?.detail || error.message || fallback,
+        error:
+          error.response?.data?.error ||
+          error.response?.data?.detail ||
+          fallback,
         status: error.response?.status || 500,
       };
     }
-    console.error('Non-Axios error:', error);
-    return { success: false, error: error.message || fallback, status: 500 };
+    return { success: false, error: fallback, status: 500 };
   }
 }
 
