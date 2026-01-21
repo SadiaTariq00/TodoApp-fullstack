@@ -31,7 +31,7 @@ export interface Task {
 ========================= */
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "http://localhost:8000/";
+  "https://shaziatariq-todo-app-backend.hf.space";
 
 class ApiClient {
   private client: AxiosInstance;
