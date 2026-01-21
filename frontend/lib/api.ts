@@ -368,6 +368,33 @@ class ApiClient {
     }
   }
 
+  // Set the JWT token in localStorage
+  setToken(token: string | null) {
+    if (typeof window !== "undefined") {
+      if (token) {
+        localStorage.setItem("jwt_token", token);
+      } else {
+        localStorage.removeItem("jwt_token");
+      }
+    }
+  }
+
+  // Logout user from backend
+  async logoutUser(): Promise<ApiResponse<{ message: string }>> {
+    try {
+      const response = await this.client.post('/api/auth/logout');
+      const result = response.data;
+
+      if (result.success) {
+        this.logout(); // Clear local storage
+      }
+
+      return result;
+    } catch (error: any) {
+      return this.handleError(error, 'Logout failed');
+    }
+  }
+
   /* =========================
      Error handler
   ========================= */
