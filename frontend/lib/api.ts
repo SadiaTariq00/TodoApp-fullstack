@@ -245,9 +245,7 @@ export interface Task {
 /* =========================
    Axios Setup
 ========================= */
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "https://shaziatariq-todo-app-backend.hf.space";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://shaziatariq-todo-app-backend.hf.space";
 
 class ApiClient {
   private client: AxiosInstance;
@@ -274,6 +272,7 @@ class ApiClient {
   ========================= */
   async register(payload: { email: string; username: string; password: string }): Promise<ApiResponse<{ user: User; token: string }>> {
     try {
+      // ❌ Remove extra /api from call
       const res = await this.client.post("/api/auth/register", payload);
       if (res.data?.success) localStorage.setItem("jwt_token", res.data.data.token);
       return res.data;
@@ -356,7 +355,6 @@ class ApiClient {
     }
   }
 
-  // ✅ New: toggleTaskCompletion
   async toggleTaskCompletion(id: number): Promise<ApiResponse<Task>> {
     const userId = this.getUserIdFromToken();
     if (!userId) return { success: false, error: "Not authenticated", status: 401 };
@@ -368,36 +366,24 @@ class ApiClient {
     }
   }
 
-  // Set the JWT token in localStorage
   setToken(token: string | null) {
     if (typeof window !== "undefined") {
-      if (token) {
-        localStorage.setItem("jwt_token", token);
-      } else {
-        localStorage.removeItem("jwt_token");
-      }
+      if (token) localStorage.setItem("jwt_token", token);
+      else localStorage.removeItem("jwt_token");
     }
   }
 
-  // Logout user from backend
   async logoutUser(): Promise<ApiResponse<{ message: string }>> {
     try {
-      const response = await this.client.post('/api/auth/logout');
+      const response = await this.client.post("/api/auth/logout");
       const result = response.data;
-
-      if (result.success) {
-        this.logout(); // Clear local storage
-      }
-
+      if (result.success) this.logout();
       return result;
     } catch (error: any) {
-      return this.handleError(error, 'Logout failed');
+      return this.handleError(error, "Logout failed");
     }
   }
 
-  /* =========================
-     Error handler
-  ========================= */
   private handleError(error: any, fallback: string): ApiResponse {
     if (axios.isAxiosError(error)) {
       return { success: false, error: error.response?.data?.error || error.response?.data?.detail || fallback, status: error.response?.status || 500 };

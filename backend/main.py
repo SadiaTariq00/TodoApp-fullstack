@@ -67,13 +67,15 @@ ALLOWED_ORIGINS = os.getenv(
 allow_origins_list = [origin.strip() for origin in ALLOWED_ORIGINS.split(",")]
 
 # --------------------------------------------------
-# FastAPI app
+# FastAPI app with proxy support for Hugging Face Spaces
 # --------------------------------------------------
 app = FastAPI(
     title="Todo Backend API",
     version="1.0.0",
     docs_url="/docs" if DEBUG else None,
-    redoc_url="/redoc" if DEBUG else None
+    redoc_url="/redoc" if DEBUG else None,
+    # Allow overriding of root_path for proxy servers like Hugging Face Spaces
+    root_path=os.getenv("ROOT_PATH", "")
 )
 
 # --------------------------------------------------
@@ -121,6 +123,20 @@ async def health():
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
+
+@app.get("/debug/routes")
+async def debug_routes():
+    """Debug endpoint to see all registered routes - only for troubleshooting Hugging Face Spaces deployment"""
+    routes_info = []
+    for route in app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            routes_info.append({
+                "path": route.path,
+                "methods": list(route.methods) if route.methods else [],
+                "name": getattr(route, 'name', 'unknown')
+            })
+    return {"routes": routes_info}
+
 # --------------------------------------------------
 # Security scheme
 # --------------------------------------------------
@@ -140,6 +156,7 @@ app.include_router(
 
 app.include_router(
     tasks_router,
+    prefix="",  # Routes in tasks.py already include /api prefix
     tags=["tasks"]
 )
 
