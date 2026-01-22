@@ -245,7 +245,12 @@ export interface Task {
 /* =========================
    Axios Setup
 ========================= */
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://shaziatariq-todo-app-backend.hf.space";
+
+// Ensure API_BASE_URL doesn't end with '/api' to avoid double prefixes
+const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://shaziatariq-todo-app-backend.hf.space";
+console.log("RAW_API_BASE_URL:", RAW_API_BASE_URL); // Debug log
+const API_BASE_URL = RAW_API_BASE_URL.endsWith('/api') ? RAW_API_BASE_URL.slice(0, -'/api'.length) : RAW_API_BASE_URL;
+console.log("FINAL API_BASE_URL:", API_BASE_URL); // Debug log
 
 class ApiClient {
   private client: AxiosInstance;
@@ -259,6 +264,7 @@ class ApiClient {
 
     // JWT token interceptor
     this.client.interceptors.request.use((config) => {
+      console.log("Making request to:", `${API_BASE_URL}${config.url}`); // Debug log
       if (typeof window !== "undefined") {
         const token = localStorage.getItem("jwt_token");
         if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -272,7 +278,6 @@ class ApiClient {
   ========================= */
   async register(payload: { email: string; username: string; password: string }): Promise<ApiResponse<{ user: User; token: string }>> {
     try {
-      // ❌ Remove extra /api from call
       const res = await this.client.post("/api/auth/register", payload);
       if (res.data?.success) localStorage.setItem("jwt_token", res.data.data.token);
       return res.data;
